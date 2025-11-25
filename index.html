@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestor de Pedidos</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#06b6d4;--success:#10b981;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;background:linear-gradient(180deg,#071029 0%, #071026 60%);color:#ecf0f3}
+    .container{max-width:1100px;margin:28px auto;padding:18px}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+    h1{margin:0;font-size:20px}
+    p.lead{margin:0;color:var(--muted)}
+    .card{background:rgba(255,255,255,0.02);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .grid{display:grid;grid-template-columns:1fr 340px;gap:16px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    input,select,textarea,button{font:inherit}
+    .search{flex:1;min-width:160px}
+    .btn{background:var(--accent);border:none;color:#022;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .list{margin-top:12px}
+    .order{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.02);margin-bottom:8px}
+    .order .left{display:flex;gap:12px;align-items:center}
+    .badge{padding:6px 8px;border-radius:999px;font-weight:600;font-size:13px}
+    .badge.p{background:rgba(255,235,59,0.12);color:#fff}
+    .badge.s{background:rgba(16,185,129,0.12);color:var(--success)}
+    .order small{display:block;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:8px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.02)}
+    .muted{color:var(--muted)}
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+    /* modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:flex;align-items:center;justify-content:center}
+    .modal{width:950px;max-width:96%;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:14px;border-radius:12px}
+    .row{display:flex;gap:10px}
+    .col{flex:1}
+    label{display:block;font-size:13px;margin-bottom:6px}
+    input[type="text"],input[type="number"],select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit}
+    .items-list{max-height:180px;overflow:auto;margin-top:6px}
+    .item{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .item input{width:100%}
+    .small{font-size:13px}
+    .actions{display:flex;gap:8px}
+    .flex-between{display:flex;justify-content:space-between;align-items:center}
+    .empty{padding:20px;text-align:center;color:var(--muted)}
+    @media (max-width:880px){.grid{grid-template-columns:1fr}
+      header{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Gestor de Pedidos</h1>
+        <p class="lead">Aplicación simple en HTML + JS para crear, editar y gestionar pedidos. Guarda en localStorage.</p>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <button id="btn-sample" class="btn ghost">Cargar ejemplo</button>
+        <button id="btn-export" class="btn">Exportar CSV</button>
+        <button id="btn-new" class="btn">Nuevo pedido</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="controls">
+            <input id="search" class="search" type="search" placeholder="Buscar por cliente, id, nota...">
+            <select id="filterStatus">
+              <option value="all">Todos los estados</option>
+              <option value="pending">Pendiente</option>
+              <option value="processing">En proceso</option>
+              <option value="shipped">Enviado</option>
+              <option value="delivered">Entregado</option>
+              <option value="cancelled">Cancelado</option>
+            </select>
+            <select id="sortBy">
+              <option value="date-desc">Fecha (nuevo)</option>
+              <option value="date-asc">Fecha (antiguo)</option>
+              <option value="total-desc">Total (mayor)</option>
+              <option value="total-asc">Total (menor)</option>
+            </select>
+            <button id="btn-clear" class="btn ghost">Limpiar</button>
+          </div>
+
+          <div id="ordersList" class="list"></div>
+
+          <div id="emptyState" class="empty" style="display:none">No hay pedidos. Crea uno nuevo con "Nuevo pedido".</div>
+
+          <footer>
+            <div class="flex-between">
+              <div><strong id="count">0</strong> pedidos • <span class="muted" id="totalSum">Total: $0</span></div>
+              <div class="muted small">Datos guardados en tu navegador (localStorage)</div>
+            </div>
+          </footer>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <h3>Detalles rápidos</h3>
+          <p class="muted small">Filtros y acciones rápidas.</p>
+          <table>
+            <tr><th>Estado</th><th>Cantidad</th></tr>
+            <tr><td>Pendiente</td><td id="count-p">0</td></tr>
+            <tr><td>En proceso</td><td id="count-pr">0</td></tr>
+            <tr><td>Enviado</td><td id="count-s">0</td></tr>
+            <tr><td>Entregado</td><td id="count-d">0</td></tr>
+            <tr><td>Cancelado</td><td id="count-c">0</td></tr>
+          </table>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <button id="btn-export-json" class="btn ghost">Exportar JSON</button>
+            <button id="btn-import-json" class="btn ghost">Importar JSON</button>
+            <input id="file-import" type="file" accept="application/json" style="display:none">
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+        <div class="card">
+          <h3>Instrucciones</h3>
+          <ul class="muted small">
+            <li>Crear pedidos con cliente, artículos, precios y estado.</li>
+            <li>Buscar, filtrar y ordenar para encontrar pedidos rápido.</li>
+            <li>Exportar a CSV para contabilidad.</li>
+            <li>Los datos se guardan en tu navegador; usa exportar/importar para respaldo.</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+  </div>
+
+  <!-- Modal -->
+  <div id="modalRoot" style="display:none"></div>
+
+  <script>
+    /* ---------- UTIL ---------- */
+    const $ = sel => document.querySelector(sel);
+    const fmtMoney = v => '$' + Number(v).toLocaleString('es-CO', {maximumFractionDigits:2});
+    const uid = () => 'P-' + Date.now().toString(36) + Math.random().toString(36).slice(2,6).toUpperCase();
+
+    /* ---------- STATE ---------- */
+    let orders = [];
+
+    const save = () => localStorage.setItem('orders_v1', JSON.stringify(orders));
+    const load = () => JSON.parse(localStorage.getItem('orders_v1') || '[]');
+
+    /* ---------- RENDER ---------- */
+    function renderList(){
+      const list = $('#ordersList');
+      list.innerHTML='';
+      const q = $('#search').value.trim().toLowerCase();
+      const filter = $('#filterStatus').value;
+      const sort = $('#sortBy').value;
+
+      let resultado = orders.slice();
+      if(filter !== 'all') resultado = resultado.filter(o => o.status === filter);
+      if(q) resultado = resultado.filter(o => (o.customer+o.id+o.notes+o.items.map(i=>i.name).join(' ')).toLowerCase().includes(q));
+
+      if(sort==='date-desc') resultado.sort((a,b)=>b.createdAt-a.createdAt);
+      if(sort==='date-asc') resultado.sort((a,b)=>a.createdAt-b.createdAt);
+      if(sort==='total-desc') resultado.sort((a,b)=>b.total-a.total);
+      if(sort==='total-asc') resultado.sort((a,b)=>a.total-a.total);
+
+      if(resultado.length===0){ $('#emptyState').style.display='block'; } else { $('#emptyState').style.display='none'; }
+
+      resultado.forEach(o=>{
+        const div = document.createElement('div'); div.className='order';
+        const left = document.createElement('div'); left.className='left';
+        const meta = document.createElement('div');
+        meta.innerHTML = `<strong>${o.customer}</strong><small>${o.id} • ${new Date(o.createdAt).toLocaleString()}</small><small class='muted'>${o.notes||''}</small>`;
+        left.appendChild(meta);
+
+        const right = document.createElement('div');
+        right.style.display='flex'; right.style.gap='8px'; right.style.alignItems='center';
+
+        const price = document.createElement('div'); price.innerHTML = `<div style="text-align:right"><strong>${fmtMoney(o.total)}</strong><br><small class='muted'>${o.items.length} items</small></div>`;
+        const status = document.createElement('div');
+        const st = document.createElement('span'); st.className='badge'; st.textContent = o.status;
+        if(o.status==='pending') st.classList.add('p');
+        if(o.status==='shipped' || o.status==='delivered') st.classList.add('s');
+        status.appendChild(st);
+
+        const more = document.createElement('div'); more.className='actions';
+        const btnView = document.createElement('button'); btnView.className='btn ghost'; btnView.textContent='Ver'; btnView.onclick=()=> openModal('view',o.id);
+        const btnEdit = document.createElement('button'); btnEdit.className='btn ghost'; btnEdit.textContent='Editar'; btnEdit.onclick=()=> openModal('edit',o.id);
+        const btnDel = document.createElement('button'); btnDel.className='btn'; btnDel.textContent='Eliminar'; btnDel.onclick=()=>{ if(confirm('Eliminar pedido?')){ orders = orders.filter(x=>x.id!==o.id); save(); refreshAll(); }};
+        more.appendChild(btnView); more.appendChild(btnEdit); more.appendChild(btnDel);
+
+        div.appendChild(left);
+        div.appendChild(price);
+        div.appendChild(status);
+        div.appendChild(more);
+        list.appendChild(div);
+      });
+
+      // stats
+      $('#count').textContent = orders.length;
+      $('#totalSum').textContent = 'Total: ' + fmtMoney(orders.reduce((s,o)=>s+o.total,0));
+      const counts = {pending:0,processing:0,shipped:0,delivered:0,cancelled:0};
+      orders.forEach(o=>counts[o.status] = (counts[o.status]||0)+1);
+      $('#count-p').textContent = counts.pending||0; $('#count-pr').textContent = counts.processing||0; $('#count-s').textContent = counts.shipped||0; $('#count-d').textContent = counts.delivered||0; $('#count-c').textContent = counts.cancelled||0;
+    }
+
+    function refreshAll(){ renderList(); }
+
+    /* ---------- MODAL ---------- */
+    function openModal(mode, id){
+      const root = $('#modalRoot'); root.style.display='block';
+      const existing = orders.find(o=>o.id===id);
+      root.innerHTML = `
+        <div class="modal-backdrop" onclick="if(event.target.classList.contains('modal-backdrop')) closeModal()">
+          <div class="modal" role="dialog">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3>${mode==='edit'?'Editar pedido':mode==='view'?'Ver pedido':'Nuevo pedido'}</h3>
+              <div style="display:flex;gap:8px">
+                <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <div class="row">
+                <div class="col">
+                  <label>Cliente</label>
+                  <input id="m_customer" type="text" value="${existing?escapeHtml(existing.customer):''}" />
+                </div>
+                <div style="width:160px">
+                  <label>Estado</label>
+                  <select id="m_status">
+                    <option value="pending">pending</option>
+                    <option value="processing">processing</option>
+                    <option value="shipped">shipped</option>
+                    <option value="delivered">delivered</option>
+                    <option value="cancelled">cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="margin-top:10px">
+                <label>Notas</label>
+                <textarea id="m_notes" rows="2">${existing?escapeHtml(existing.notes):''}</textarea>
+              </div>
+
+              <div style="margin-top:10px">
+                <label>Artículos</label>
+                <div id="m_items" class="items-list"></div>
+                <div style="display:flex;gap:8px;margin-top:6px">
+                  <input id="new_item_name" placeholder="Nombre del artículo" />
+                  <input id="new_item_qty" type="number" placeholder="Cant." style="width:80px" />
+                  <input id="new_item_price" type="number" placeholder="Precio" style="width:120px" />
+                  <button class="btn" id="btn-add-item">Añadir</button>
+                </div>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+                <div class="muted">Total: <strong id="m_total">$0</strong></div>
+                <div style="display:flex;gap:8px">
+                  ${mode==='view'?`<button class='btn ghost' onclick="closeModal()">Cerrar</button>`:`<button class='btn' id='m_save'>Guardar</button>`}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      // set status
+      if(existing) $('#m_status').value = existing.status;
+
+      // populate items
+      const itemsRoot = $('#m_items');
+      let items = existing ? JSON.parse(JSON.stringify(existing.items)) : [];
+      function renderItems(){
+        itemsRoot.innerHTML='';
+        items.forEach((it,i)=>{
+          const div = document.createElement('div'); div.className='item';
+          div.innerHTML = `<input value="${escapeHtml(it.name)}" data-i='${i}' class='small' />
+                           <input type='number' value='${it.qty}' data-i='${i}' style='width:80px' />
+                           <input type='number' value='${it.price}' data-i='${i}' style='width:110px' />
+                           <button class='btn ghost' data-rem='${i}'>Quitar</button>`;
+          itemsRoot.appendChild(div);
+        });
+        calculateTotal();
+      }
+
+      function calculateTotal(){ const t = items.reduce((s,x)=>s + (Number(x.qty)||0)*(Number(x.price)||0),0); $('#m_total').textContent = fmtMoney(t); }
+
+      renderItems();
+
+      // events
+      $('#btn-add-item').onclick = ()=>{
+        const name = $('#new_item_name').value.trim(); const qty = Number($('#new_item_qty').value) || 0; const price = Number($('#new_item_price').value) || 0;
+        if(!name || qty<=0 || price<=0){ alert('Rellena nombre, cantidad y precio válidos'); return }
+        items.push({name,qty,price}); $('#new_item_name').value=''; $('#new_item_qty').value=''; $('#new_item_price').value=''; renderItems();
+      }
+
+      itemsRoot.addEventListener('click', e=>{
+        if(e.target.dataset.rem!==undefined){ const i=Number(e.target.dataset.rem); items.splice(i,1); renderItems(); }
+      });
+
+      itemsRoot.addEventListener('input', e=>{
+        const el = e.target; const i = el.dataset.i; if(i===undefined) return; const idx=Number(i);
+        const val = el.value; const inputs = itemsRoot.querySelectorAll('input');
+        // identify which input by type/position
+        const parent = el.closest('.item'); const childInputs = parent.querySelectorAll('input');
+        items[idx].name = childInputs[0].value; items[idx].qty = Number(childInputs[1].value)||0; items[idx].price = Number(childInputs[2].value)||0; calculateTotal();
+      });
+
+      if(mode!=='view') $('#m_save').onclick = ()=>{
+        const customer = $('#m_customer').value.trim(); const notes = $('#m_notes').value.trim(); const status = $('#m_status').value;
+        if(!customer){ alert('Cliente requerido'); return }
+        const total = items.reduce((s,x)=>s + (Number(x.qty)||0)*(Number(x.price)||0),0);
+        if(total<=0){ if(!confirm('Total 0 — continuar?')) return }
+        if(existing){
+          existing.customer = customer; existing.notes = notes; existing.items = items; existing.status = status; existing.total = total; existing.updatedAt = Date.now();
+        } else {
+          const o = { id: uid(), customer, notes, items, status, total, createdAt: Date.now(), updatedAt: Date.now() };
+          orders.push(o);
+        }
+        save(); closeModal(); refreshAll();
+      }
+    }
+
+    function closeModal(){ $('#modalRoot').style.display='none'; $('#modalRoot').innerHTML=''; }
+
+    function escapeHtml(s){ if(!s) return ''; return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;"); }
+
+    /* ---------- EXPORT CSV/JSON ---------- */
+    function exportCSV(){
+      if(orders.length===0){ alert('No hay pedidos para exportar'); return }
+      const rows = [ ['id','cliente','estado','fecha','total','items','notas'] ];
+      orders.forEach(o=> rows.push([o.id, o.customer, o.status, new Date(o.createdAt).toISOString(), o.total, o.items.map(i=>`${i.name} (x${i.qty}@${i.price})`).join('|'), o.notes||'']));
+      const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download='pedidos.csv'; a.click(); URL.revokeObjectURL(url);
+    }
+
+    function exportJSON(){ const blob = new Blob([JSON.stringify(orders, null, 2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='pedidos.json'; a.click(); URL.revokeObjectURL(url); }
+
+    function importJSON(file){ const r = new FileReader(); r.onload = ()=>{
+      try{ const data = JSON.parse(r.result); if(!Array.isArray(data)) throw 'Formato inválido'; orders = data; save(); refreshAll(); alert('Importado con éxito'); }
+      catch(e){ alert('Error al importar: '+e); }
+    }; r.readAsText(file); }
+
+    /* ---------- SAMPLE DATA ---------- */
+    function loadSample(){ orders = [
+      { id: uid(), customer:'Panadería El Buen Trigo', notes:'Entrega antes de las 10am', items:[{name:'Pan francés',qty:30,price:200},{name:'Bollos',qty:20,price:150}], status:'pending', total:30*200+20*150, createdAt:Date.now()-86400000*2, updatedAt:Date.now()-86400000*2 },
+      { id: uid(), customer:'Café Central', notes:'Pago contra entrega', items:[{name:'Café molido',qty:10,price:15000}], status:'shipped', total:10*15000, createdAt:Date.now()-86400000*1, updatedAt:Date.now()-86400000*1 }
+    ]; save(); refreshAll(); }
+
+    /* ---------- INIT ---------- */
+    document.addEventListener('DOMContentLoaded', ()=>{
+      orders = load();
+      refreshAll();
+
+      $('#search').addEventListener('input', ()=>renderList());
+      $('#filterStatus').addEventListener('change', ()=>renderList());
+      $('#sortBy').addEventListener('change', ()=>renderList());
+      $('#btn-new').addEventListener('click', ()=> openModal('new'));
+      $('#btn-sample').addEventListener('click', ()=>{ if(confirm('Reemplazar pedidos actuales con datos de ejemplo?')) loadSample(); });
+      $('#btn-export').addEventListener('click', exportCSV);
+      $('#btn-export-json').addEventListener('click', exportJSON);
+      $('#btn-import-json').addEventListener('click', ()=>$('#file-import').click());
+      $('#file-import').addEventListener('change', e=>{ if(e.target.files.length) importJSON(e.target.files[0]); e.target.value=''; });
+      $('#btn-clear').addEventListener('click', ()=>{ if(confirm('Limpiar búsqueda y filtros?')){ $('#search').value=''; $('#filterStatus').value='all'; $('#sortBy').value='date-desc'; renderList(); }});
+
+      // double click on order to quick-mark shipped
+      document.getElementById('ordersList').addEventListener('dblclick', e=>{
+        const ord = e.target.closest('.order'); if(!ord) return; const id = ord.querySelector('small')?.textContent.split(' • ')[0]; if(!id) return; const o = orders.find(x=>id.includes(x.id)); if(!o) return; if(confirm('Marcar como shipped?')){ o.status='shipped'; save(); refreshAll(); }
+      });
+
+    });
+
+  </script>
+</body>
+</html>
